@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: trade_db
+    environment:
+      POSTGRES_DB:       trade_db
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./database/views.sql:/docker-entrypoint-initdb.d/02_views.sql
+      - ./database/functions.sql:/docker-entrypoint-initdb.d/03_functions.sql
+      - ./database/triggers.sql:/docker-entrypoint-initdb.d/04_triggers.sql
+      - ./database/seed_reference_data.sql:/docker-entrypoint-initdb.d/05_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trade_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trade_backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/trade_db
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: trade_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
