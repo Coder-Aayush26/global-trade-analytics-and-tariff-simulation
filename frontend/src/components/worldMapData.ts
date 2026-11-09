@@ -6,11 +6,14 @@ export interface CountryMeta {
   flagEmoji: string;
   region: string;
   incomeGroup: string;
+  coordinates: [number, number]; // [longitude, latitude]
   gdpEstimate?: string;
   majorProducts?: string;
+  tradeBloc?: string;
+  defaultBalanceStatus?: 'surplus' | 'deficit';
+  volumeTier?: 'mega' | 'high' | 'medium';
 }
 
-// Complete metadata dictionary for relational database economies and global trading partners
 export const COUNTRY_METADATA: Record<string, CountryMeta> = {
   // ── Seeded Database Economies (12 Key Relational Entities) ────
   'United States of America': {
@@ -20,9 +23,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 1,
     flagEmoji: '🇺🇸',
     region: 'North America',
+    tradeBloc: 'USMCA',
     incomeGroup: 'High income',
+    coordinates: [-95.7129, 37.0902],
     gdpEstimate: '$26.9 Trillion',
     majorProducts: 'Semiconductors (8542), Telecommunications (8517), Aircraft, Automobiles',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'mega',
   },
   'China': {
     name: 'China',
@@ -31,9 +38,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 2,
     flagEmoji: '🇨🇳',
     region: 'East Asia',
+    tradeBloc: 'RCEP',
     incomeGroup: 'Upper middle income',
+    coordinates: [104.1954, 35.8617],
     gdpEstimate: '$17.8 Trillion',
     majorProducts: 'Smartphones & Telecom (8517), Solar PV, Computers, Lithium Batteries',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'mega',
   },
   'Germany': {
     name: 'Germany',
@@ -42,9 +53,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 3,
     flagEmoji: '🇩🇪',
     region: 'Europe',
+    tradeBloc: 'European Union',
     incomeGroup: 'High income',
+    coordinates: [10.4515, 51.1657],
     gdpEstimate: '$4.4 Trillion',
     majorProducts: 'Automotive & Parts, Industrial Machinery, Chemical Products, Medical Devices',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'high',
   },
   'Japan': {
     name: 'Japan',
@@ -53,9 +68,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 4,
     flagEmoji: '🇯🇵',
     region: 'East Asia',
+    tradeBloc: 'CPTPP / RCEP',
     incomeGroup: 'High income',
+    coordinates: [138.2529, 36.2048],
     gdpEstimate: '$4.2 Trillion',
     majorProducts: 'Motor Vehicles, Electronic Integrated Circuits, Robotics, Steel',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'high',
   },
   'United Kingdom': {
     name: 'United Kingdom',
@@ -64,9 +83,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 5,
     flagEmoji: '🇬🇧',
     region: 'Europe',
+    tradeBloc: 'CPTPP',
     incomeGroup: 'High income',
+    coordinates: [-3.4360, 55.3781],
     gdpEstimate: '$3.3 Trillion',
     majorProducts: 'Pharmaceuticals, Aerospace, Financial Services, Automotive',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'high',
   },
   'France': {
     name: 'France',
@@ -75,9 +98,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 6,
     flagEmoji: '🇫🇷',
     region: 'Europe',
+    tradeBloc: 'European Union',
     incomeGroup: 'High income',
+    coordinates: [2.2137, 46.2276],
     gdpEstimate: '$3.0 Trillion',
     majorProducts: 'Aviation & Spacecraft, Pharmaceuticals, Luxury Goods, Wine & Spirits',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'high',
   },
   'India': {
     name: 'India',
@@ -86,9 +113,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 7,
     flagEmoji: '🇮🇳',
     region: 'South Asia',
+    tradeBloc: 'SAARC / IPEF',
     incomeGroup: 'Lower middle income',
+    coordinates: [78.9629, 20.5937],
     gdpEstimate: '$3.7 Trillion',
     majorProducts: 'Refined Petroleum, Generic Pharmaceuticals, IT Systems, Diamond Jewellery',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'high',
   },
   'Brazil': {
     name: 'Brazil',
@@ -97,9 +128,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 8,
     flagEmoji: '🇧🇷',
     region: 'South America',
+    tradeBloc: 'Mercosur',
     incomeGroup: 'Upper middle income',
+    coordinates: [-51.9253, -14.2350],
     gdpEstimate: '$2.1 Trillion',
     majorProducts: 'Soybeans, Iron Ore, Crude Petroleum, Beef & Poultry',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'medium',
   },
   'Canada': {
     name: 'Canada',
@@ -108,9 +143,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 9,
     flagEmoji: '🇨🇦',
     region: 'North America',
+    tradeBloc: 'USMCA',
     incomeGroup: 'High income',
+    coordinates: [-106.3468, 56.1304],
     gdpEstimate: '$2.1 Trillion',
     majorProducts: 'Crude Petroleum, Motor Vehicles, Lumber, Aluminum',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'high',
   },
   'South Korea': {
     name: 'South Korea',
@@ -119,9 +158,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 10,
     flagEmoji: '🇰🇷',
     region: 'East Asia',
+    tradeBloc: 'RCEP',
     incomeGroup: 'High income',
+    coordinates: [127.7669, 35.9078],
     gdpEstimate: '$1.7 Trillion',
     majorProducts: 'Memory Semiconductors (8542), Displays, Cargo Ships, Motor Vehicles',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'high',
   },
   'Australia': {
     name: 'Australia',
@@ -130,9 +173,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 11,
     flagEmoji: '🇦🇺',
     region: 'Oceania',
+    tradeBloc: 'CPTPP / RCEP',
     incomeGroup: 'High income',
+    coordinates: [133.7751, -25.2744],
     gdpEstimate: '$1.7 Trillion',
     majorProducts: 'Iron Ore, Metallurgical Coal, LNG, Gold, Agricultural Grains',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'high',
   },
   'Mexico': {
     name: 'Mexico',
@@ -141,9 +188,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     dbId: 12,
     flagEmoji: '🇲🇽',
     region: 'North America',
+    tradeBloc: 'USMCA',
     incomeGroup: 'Upper middle income',
+    coordinates: [-102.5528, 23.6345],
     gdpEstimate: '$1.4 Trillion',
     majorProducts: 'Automotive Assemblies, Computers, Medical Instruments, Telecommunications',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'medium',
   },
 
   // ── Global Trading Partners (Real World Economies in TopoJSON) ─
@@ -153,9 +204,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'RU',
     flagEmoji: '🇷🇺',
     region: 'Europe / Eurasia',
+    tradeBloc: 'EAEU',
     incomeGroup: 'Upper middle income',
+    coordinates: [105.3188, 61.5240],
     gdpEstimate: '$2.0 Trillion',
     majorProducts: 'Crude Petroleum, Natural Gas, Fertilizers, Wheat',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'medium',
   },
   'Italy': {
     name: 'Italy',
@@ -163,9 +218,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'IT',
     flagEmoji: '🇮🇹',
     region: 'Europe',
+    tradeBloc: 'European Union',
     incomeGroup: 'High income',
+    coordinates: [12.5674, 41.8719],
     gdpEstimate: '$2.2 Trillion',
     majorProducts: 'Precision Machinery, Pharmaceuticals, Fashion, High-End Automotive',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'medium',
   },
   'Spain': {
     name: 'Spain',
@@ -173,9 +232,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'ES',
     flagEmoji: '🇪🇸',
     region: 'Europe',
+    tradeBloc: 'European Union',
     incomeGroup: 'High income',
+    coordinates: [-3.7492, 40.4637],
     gdpEstimate: '$1.6 Trillion',
     majorProducts: 'Motor Vehicles, Olive Oil, Fruits, Pharmaceuticals',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'medium',
   },
   'Saudi Arabia': {
     name: 'Saudi Arabia',
@@ -183,9 +246,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'SA',
     flagEmoji: '🇸🇦',
     region: 'Middle East',
+    tradeBloc: 'GCC',
     incomeGroup: 'High income',
+    coordinates: [45.0792, 23.8859],
     gdpEstimate: '$1.1 Trillion',
     majorProducts: 'Crude Petroleum, Polymers, Basic Petrochemicals',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'medium',
   },
   'South Africa': {
     name: 'South Africa',
@@ -193,9 +260,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'ZA',
     flagEmoji: '🇿🇦',
     region: 'Sub-Saharan Africa',
+    tradeBloc: 'AfCFTA',
     incomeGroup: 'Upper middle income',
+    coordinates: [22.9375, -30.5595],
     gdpEstimate: '$400 Billion',
     majorProducts: 'Platinum Group Metals, Gold, Coal, Iron Ore, Motor Vehicles',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'medium',
   },
   'Indonesia': {
     name: 'Indonesia',
@@ -203,9 +274,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'ID',
     flagEmoji: '🇮🇩',
     region: 'East Asia & Pacific',
+    tradeBloc: 'ASEAN / RCEP',
     incomeGroup: 'Upper middle income',
+    coordinates: [113.9213, -0.7893],
     gdpEstimate: '$1.3 Trillion',
     majorProducts: 'Palm Oil, Coal Briquettes, Nickel Matte, Electronics',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'medium',
   },
   'Argentina': {
     name: 'Argentina',
@@ -213,9 +288,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'AR',
     flagEmoji: '🇦🇷',
     region: 'South America',
+    tradeBloc: 'Mercosur',
     incomeGroup: 'Upper middle income',
+    coordinates: [-63.6167, -38.4161],
     gdpEstimate: '$640 Billion',
     majorProducts: 'Soybean Meal & Oil, Corn, Wheat, Lithium',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'medium',
   },
   'Egypt': {
     name: 'Egypt',
@@ -223,9 +302,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'EG',
     flagEmoji: '🇪🇬',
     region: 'Middle East & North Africa',
+    tradeBloc: 'AfCFTA',
     incomeGroup: 'Lower middle income',
+    coordinates: [30.8025, 26.8206],
     gdpEstimate: '$470 Billion',
     majorProducts: 'Petroleum Gases, Fertilizers, Textiles, Citrus Fruits',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'medium',
   },
   'Turkey': {
     name: 'Turkey',
@@ -233,9 +316,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'TR',
     flagEmoji: '🇹🇷',
     region: 'Europe / Middle East',
+    tradeBloc: 'Customs Union',
     incomeGroup: 'Upper middle income',
+    coordinates: [35.2433, 38.9637],
     gdpEstimate: '$1.1 Trillion',
     majorProducts: 'Automotive, Steel, Machinery, Apparel',
+    defaultBalanceStatus: 'deficit',
+    volumeTier: 'medium',
   },
   'Netherlands': {
     name: 'Netherlands',
@@ -243,9 +330,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'NL',
     flagEmoji: '🇳🇱',
     region: 'Europe',
+    tradeBloc: 'European Union',
     incomeGroup: 'High income',
+    coordinates: [5.2913, 52.1326],
     gdpEstimate: '$1.0 Trillion',
     majorProducts: 'Lithography Machinery, Petroleum Refining, Agriculture',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'high',
   },
   'Switzerland': {
     name: 'Switzerland',
@@ -253,9 +344,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'CH',
     flagEmoji: '🇨🇭',
     region: 'Europe',
+    tradeBloc: 'EFTA',
     incomeGroup: 'High income',
+    coordinates: [8.2275, 46.8182],
     gdpEstimate: '$880 Billion',
     majorProducts: 'Pharmaceuticals, Precision Watches, Chemicals, Gold',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'medium',
   },
   'Singapore': {
     name: 'Singapore',
@@ -263,9 +358,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'SG',
     flagEmoji: '🇸🇬',
     region: 'East Asia & Pacific',
+    tradeBloc: 'ASEAN / CPTPP',
     incomeGroup: 'High income',
+    coordinates: [103.8198, 1.3521],
     gdpEstimate: '$500 Billion',
     majorProducts: 'Integrated Circuits, Refined Petroleum, Financial Instruments',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'high',
   },
   'Vietnam': {
     name: 'Vietnam',
@@ -273,9 +372,13 @@ export const COUNTRY_METADATA: Record<string, CountryMeta> = {
     iso2: 'VN',
     flagEmoji: '🇻🇳',
     region: 'East Asia & Pacific',
+    tradeBloc: 'ASEAN / CPTPP',
     incomeGroup: 'Lower middle income',
+    coordinates: [108.2772, 14.0583],
     gdpEstimate: '$430 Billion',
     majorProducts: 'Telephones & Parts, Computers, Footwear, Textiles',
+    defaultBalanceStatus: 'surplus',
+    volumeTier: 'medium',
   },
 };
 
@@ -284,12 +387,12 @@ export function getCountryMetadata(geoName: string): CountryMeta {
   if (COUNTRY_METADATA[geoName]) {
     return COUNTRY_METADATA[geoName];
   }
-  // Alternate name aliases
+  // Alternate aliases
   if (geoName === 'United States' || geoName === 'USA') return COUNTRY_METADATA['United States of America'];
   if (geoName === 'Korea' || geoName === 'Dem. Rep. Korea' || geoName === 'Republic of Korea') return COUNTRY_METADATA['South Korea'];
   if (geoName === 'Great Britain' || geoName === 'UK') return COUNTRY_METADATA['United Kingdom'];
 
-  // Default fallback for any world nation
+  // Default fallback
   return {
     name: geoName,
     iso3: geoName.slice(0, 3).toUpperCase(),
@@ -297,6 +400,7 @@ export function getCountryMetadata(geoName: string): CountryMeta {
     flagEmoji: '🌐',
     region: 'Global Trading Partner',
     incomeGroup: 'Developing / Emerging Market',
+    coordinates: [0, 20],
     gdpEstimate: 'Sovereign Economy',
     majorProducts: 'Bilateral Goods & Commodities',
   };

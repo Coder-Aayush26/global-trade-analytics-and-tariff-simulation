@@ -8,6 +8,8 @@ import {
   ZoomableGroup,
   Graticule,
   Sphere,
+  Line,
+  Marker,
 } from 'react-simple-maps';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -24,6 +26,9 @@ const fmt = (n: number) => {
   return n.toLocaleString();
 };
 
+type MapLayer = 'scope' | 'balance' | 'volume' | 'bloc';
+type ProjectionType = 'geoEqualEarth' | 'geoMercator';
+
 export default function WorldMap() {
   const navigate = useNavigate();
   const [selectedCountry, setSelectedCountry] = useState<CountryMeta>(
@@ -36,8 +41,12 @@ export default function WorldMap() {
     zoom: 1,
   });
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedYear, setSelectedYear] = useState<number>(2023);
+  const [mapLayer, setMapLayer] = useState<MapLayer>('scope');
+  const [projection, setProjection] = useState<ProjectionType>('geoEqualEarth');
+  const [showArcs, setShowArcs] = useState<boolean>(true);
 
-  // List of seeded database countries for quick access chips
+  // List of seeded database countries
   const seededCountries = useMemo(() => {
     return Object.values(COUNTRY_METADATA).filter((c) => c.dbId !== undefined);
   }, []);
@@ -51,41 +60,41 @@ export default function WorldMap() {
     );
   }, [searchQuery, seededCountries]);
 
-  // Live PostgreSQL Trade Parameters for the selected economy
+  // Live PostgreSQL Trade Parameters
   const isDbCountry = Boolean(selectedCountry?.dbId);
 
   const { data: balanceData, isLoading: loadingBalance } = useQuery({
-    queryKey: ['mapBalance', selectedCountry?.dbId],
+    queryKey: ['mapBalance', selectedCountry?.dbId, selectedYear],
     queryFn: () =>
       fetchTradeBalance({
         country_id: selectedCountry!.dbId,
         year_from: 2020,
-        year_to: 2023,
+        year_to: selectedYear,
       }),
     enabled: isDbCountry,
   });
 
   const { data: topExports } = useQuery({
-    queryKey: ['mapTopExports', selectedCountry?.dbId],
+    queryKey: ['mapTopExports', selectedCountry?.dbId, selectedYear],
     queryFn: () =>
       fetchTopPartners({
         reporter_id: selectedCountry!.dbId,
         flow: 'EXPORT',
-        year_from: 2020,
-        year_to: 2023,
+        year_from: selectedYear,
+        year_to: selectedYear,
         limit: 5,
       }),
     enabled: isDbCountry,
   });
 
   const { data: topImports } = useQuery({
-    queryKey: ['mapTopImports', selectedCountry?.dbId],
+    queryKey: ['mapTopImports', selectedCountry?.dbId, selectedYear],
     queryFn: () =>
       fetchTopPartners({
         reporter_id: selectedCountry!.dbId,
         flow: 'IMPORT',
-        year_from: 2020,
-        year_to: 2023,
+        year_from: selectedYear,
+        year_to: selectedYear,
         limit: 5,
       }),
     enabled: isDbCountry,
@@ -101,6 +110,76 @@ export default function WorldMap() {
   });
 
   const latestTrade = balanceData && balanceData.length > 0 ? balanceData[balanceData.length - 1] : null;
+
+  // Compute trade flow vectors for network arcs
+  const tradeArcs = useMemo(() => {
+    if (!showArcs || !isDbCountry || !selectedCountry.coordinates) return [];
+    const arcs: Array<{
+      partnerName: string;
+      from: [number, number];
+      to: [number, number];
+      flow: 'export' | 'import';
+      value: number;
+    }> = [];
+
+    topExports?.forEach((p: any) => {
+      const partnerMeta = getCountryMetadata(p.partner_country);
+      if (partnerMeta.coordinates) {
+        arcs.push({
+          partnerName: p.partner_country,
+          from: selectedCountry.coordinates,
+          to: partnerMeta.coordinates,
+          flow: 'export',
+          value: Number(p.total_value_usd),
+        });
+      }
+    });
+
+    topImports?.forEach((p: any) => {
+      const partnerMeta = getCountryMetadata(p.partner_country);
+      if (partnerMeta.coordinates) {
+        arcs.push({
+          partnerName: p.partner_country,
+          from: partnerMeta.coordinates,
+          to: selectedCountry.coordinates,
+          flow: 'import',
+          value: Number(p.total_value_usd),
+        });
+      }
+    });
+
+    return arcs;
+  }, [showArcs, isDbCountry, selectedCountry, topExports, topImports]);
+
+  // Color resolver according to active choropleth layer (Light Theme Palette)
+  const getCountryFill = (meta: CountryMeta, isSelected: boolean) => {
+    if (isSelected) return '#f59e0b'; // Active selection: Vibrant Amber
+
+    switch (mapLayer) {
+      case 'balance':
+        if (meta.defaultBalanceStatus === 'surplus') return '#a7f3d0'; // Light Emerald
+        if (meta.defaultBalanceStatus === 'deficit') return '#fecaca'; // Light Rose
+        return '#f1f5f9';
+
+      case 'volume':
+        if (meta.volumeTier === 'mega') return '#7dd3fc'; // Sky
+        if (meta.volumeTier === 'high') return '#c7d2fe'; // Iris
+        if (meta.volumeTier === 'medium') return '#e2e8f0';
+        return '#f8fafc';
+
+      case 'bloc':
+        if (meta.tradeBloc === 'USMCA') return '#bae6fd';
+        if (meta.tradeBloc === 'European Union') return '#c7d2fe';
+        if (meta.tradeBloc === 'RCEP' || meta.tradeBloc === 'ASEAN / RCEP') return '#fde68a';
+        if (meta.tradeBloc === 'Mercosur') return '#a7f3d0';
+        if (meta.tradeBloc?.includes('CPTPP')) return '#ddd6fe';
+        return '#e2e8f0';
+
+      case 'scope':
+      default:
+        return meta.dbId ? '#c7d2fe' : '#e2e8f0';
+    }
+  };
 
   const handleZoomIn = () => {
     if (position.zoom >= 4) return;
@@ -119,9 +198,9 @@ export default function WorldMap() {
   return (
     <div>
       <div className="page-header">
-        <h1>🗺️ Accurate World Trade Cartography</h1>
+        <h1>🗺️ Accurate World Trade Cartography & Network Intelligence</h1>
         <p>
-          Standard Natural Earth projection displaying real sovereign borders. Click any country to query
+          Standard Natural Earth projection displaying sovereign geographic borders. Click any country to query
           historical trade balances, bilateral trade partner dependencies, and statutory tariff policies.
         </p>
       </div>
@@ -135,74 +214,97 @@ export default function WorldMap() {
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
-            gap: '0.75rem',
+            gap: '0.85rem',
             marginBottom: '0.75rem',
             paddingBottom: '0.75rem',
             borderBottom: '1px solid var(--glass-border)',
           }}
         >
-          {/* Map Legend */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.82rem' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span
-                style={{
-                  width: 13,
-                  height: 13,
-                  borderRadius: 3,
-                  background: '#312e81',
-                  border: '1.5px solid #818cf8',
-                  display: 'inline-block',
-                }}
-              />
-              <span style={{ color: '#ffffff', fontWeight: 600 }}>Relational Database Economies (12)</span>
+          {/* Choropleth Layer Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '0.2rem' }}>
+              CHOROPLETH LAYER:
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span
-                style={{
-                  width: 13,
-                  height: 13,
-                  borderRadius: 3,
-                  background: '#1e2333',
-                  border: '1px solid #3b4258',
-                  display: 'inline-block',
-                }}
-              />
-              <span style={{ color: 'var(--text-secondary)' }}>Global Sovereign Economies (165+)</span>
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span
-                style={{
-                  width: 13,
-                  height: 13,
-                  borderRadius: 3,
-                  background: '#0284c7',
-                  border: '1.5px solid #ffffff',
-                  boxShadow: '0 0 8px #0284c7',
-                  display: 'inline-block',
-                }}
-              />
-              <span style={{ color: '#ffffff', fontWeight: 700 }}>Selected Economy</span>
-            </span>
+            <button
+              className={`country-chip ${mapLayer === 'scope' ? 'active' : ''}`}
+              onClick={() => setMapLayer('scope')}
+              style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+            >
+              Relational DB Scope
+            </button>
+            <button
+              className={`country-chip ${mapLayer === 'balance' ? 'active' : ''}`}
+              onClick={() => setMapLayer('balance')}
+              style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+            >
+              Surplus vs Deficit
+            </button>
+            <button
+              className={`country-chip ${mapLayer === 'volume' ? 'active' : ''}`}
+              onClick={() => setMapLayer('volume')}
+              style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+            >
+              Trade Volume Tiers
+            </button>
+            <button
+              className={`country-chip ${mapLayer === 'bloc' ? 'active' : ''}`}
+              onClick={() => setMapLayer('bloc')}
+              style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+            >
+              Trade Blocs
+            </button>
           </div>
 
-          {/* Search & Zoom Controls */}
-          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-            <input
-              type="text"
-              placeholder="🔍 Filter country..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+          {/* Tools: Arcs, Projection, Year & Zoom Controls */}
+          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Trade Arcs Toggle */}
+            <button
+              className={`btn btn-sm ${showArcs ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setShowArcs(!showArcs)}
+              title="Toggle Bilateral Trade Flow Network Arcs"
+            >
+              {showArcs ? '🌐 Trade Arcs: ON' : '🌐 Trade Arcs: OFF'}
+            </button>
+
+            {/* Projection Toggle */}
+            <select
+              value={projection}
+              onChange={(e) => setProjection(e.target.value as ProjectionType)}
               style={{
-                padding: '0.38rem 0.75rem',
-                fontSize: '0.82rem',
-                minWidth: '180px',
+                padding: '0.35rem 0.65rem',
+                fontSize: '0.8rem',
                 background: 'var(--bg-input)',
                 border: '1px solid var(--glass-border-light)',
                 borderRadius: '6px',
                 color: '#fff',
                 outline: 'none',
               }}
-            />
+            >
+              <option value="geoEqualEarth">Equal Earth</option>
+              <option value="geoMercator">Mercator</option>
+            </select>
+
+            {/* Observation Year Selector */}
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              style={{
+                padding: '0.35rem 0.65rem',
+                fontSize: '0.8rem',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--glass-border-light)',
+                borderRadius: '6px',
+                color: '#fff',
+                outline: 'none',
+              }}
+            >
+              <option value={2023}>Year 2023</option>
+              <option value={2022}>Year 2022</option>
+              <option value={2021}>Year 2021</option>
+              <option value={2020}>Year 2020</option>
+            </select>
+
+            {/* Zoom Controls */}
             <button className="btn btn-secondary btn-sm" onClick={handleZoomIn} title="Zoom In">
               +
             </button>
@@ -213,6 +315,50 @@ export default function WorldMap() {
               Reset
             </button>
           </div>
+        </div>
+
+        {/* Floating Mini HUD on Top-Right */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '4.8rem',
+            right: '1.75rem',
+            background: 'rgba(255, 255, 255, 0.94)',
+            backdropFilter: 'blur(14px)',
+            border: '1px solid var(--glass-border-light)',
+            borderRadius: '10px',
+            padding: '0.75rem 1rem',
+            zIndex: 30,
+            maxWidth: '240px',
+            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em' }}>
+            Selected Economy HUD
+          </div>
+          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', marginTop: '0.2rem' }}>
+            {selectedCountry.flagEmoji} {selectedCountry.name}
+          </div>
+          <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>
+            ISO: {selectedCountry.iso3} · {selectedCountry.region}
+          </div>
+          {latestTrade && (
+            <div style={{ marginTop: '0.45rem', paddingTop: '0.45rem', borderTop: '1px solid #e2e8f0', fontSize: '0.78rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}>
+                <span>Exports:</span> <b style={{ color: '#059669' }}>${fmt(Number(latestTrade.exports_usd))}</b>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155', marginTop: '0.2rem' }}>
+                <span>Imports:</span> <b style={{ color: '#d97706' }}>${fmt(Number(latestTrade.imports_usd))}</b>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155', marginTop: '0.2rem' }}>
+                <span>Balance:</span>{' '}
+                <b className={Number(latestTrade.trade_balance_usd) >= 0 ? 'text-green' : 'text-red'}>
+                  ${fmt(Number(latestTrade.trade_balance_usd))}
+                </b>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Hover Floating Tooltip */}
@@ -235,12 +381,12 @@ export default function WorldMap() {
           </div>
         )}
 
-        {/* Real Accurate Cartographic SVG Map */}
+        {/* Real Accurate Cartographic SVG Map Canvas with Network Arcs */}
         <div className="map-svg-container">
           <ComposableMap
-            projection="geoEqualEarth"
+            projection={projection}
             projectionConfig={{
-              scale: 165,
+              scale: projection === 'geoEqualEarth' ? 165 : 120,
               center: [0, 0],
             }}
             style={{ width: '100%', height: '100%', outline: 'none' }}
@@ -254,8 +400,8 @@ export default function WorldMap() {
                 }
               }}
             >
-              <Sphere stroke="#1a1e2c" strokeWidth={0.5} id="sphere" fill="transparent" />
-              <Graticule stroke="#151926" strokeWidth={0.5} />
+              <Sphere stroke="#cbd5e1" strokeWidth={0.5} id="sphere" fill="transparent" />
+              <Graticule stroke="#e2e8f0" strokeWidth={0.5} />
               <Geographies geography={TOPO_JSON_URL}>
                 {({ geographies }) =>
                   geographies.map((geo) => {
@@ -281,25 +427,19 @@ export default function WorldMap() {
                           setHoveredCountry(null);
                           setTooltipPos(null);
                         }}
-                        fill={
-                          isSelected
-                            ? '#0284c7'
-                            : isDb
-                            ? '#312e81'
-                            : '#1c202d'
-                        }
+                        fill={getCountryFill(meta, isSelected)}
                         stroke={
                           isSelected
                             ? '#ffffff'
                             : isDb
-                            ? '#818cf8'
-                            : '#2b3245'
+                            ? '#4f46e5'
+                            : '#94a3b8'
                         }
-                        strokeWidth={isSelected ? 1.8 : isDb ? 0.9 : 0.5}
+                        strokeWidth={isSelected ? 2.0 : isDb ? 1.0 : 0.6}
                         style={{
                           outline: 'none',
                           cursor: 'pointer',
-                          transition: 'all 0.2s ease',
+                          transition: 'fill 0.2s ease, stroke 0.2s ease',
                         }}
                         className="rsm-geography"
                       />
@@ -307,6 +447,39 @@ export default function WorldMap() {
                   })
                 }
               </Geographies>
+
+              {/* Bilateral Trade Network Arcs */}
+              {tradeArcs.map((arc, idx) => (
+                <Line
+                  key={`arc-${idx}`}
+                  from={arc.from}
+                  to={arc.to}
+                  stroke={arc.flow === 'export' ? '#10b981' : '#f59e0b'}
+                  strokeWidth={2.2}
+                  strokeDasharray="4 2"
+                  style={{ pointerEvents: 'none', opacity: 0.85 }}
+                />
+              ))}
+
+              {/* Markers for Connected Trade Hubs */}
+              {tradeArcs.map((arc, idx) => (
+                <Marker key={`marker-${idx}`} coordinates={arc.flow === 'export' ? arc.to : arc.from}>
+                  <circle
+                    r={3.5}
+                    fill={arc.flow === 'export' ? '#10b981' : '#f59e0b'}
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                  />
+                </Marker>
+              ))}
+
+              {/* Selected Country Center Marker */}
+              {selectedCountry.coordinates && (
+                <Marker coordinates={selectedCountry.coordinates}>
+                  <circle r={5} fill="#0284c7" stroke="#ffffff" strokeWidth={1.5} />
+                  <circle r={9} fill="none" stroke="#0284c7" strokeWidth={1} opacity={0.6} />
+                </Marker>
+              )}
             </ZoomableGroup>
           </ComposableMap>
         </div>
@@ -315,15 +488,39 @@ export default function WorldMap() {
         <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--glass-border)' }}>
           <div
             style={{
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              marginBottom: '0.35rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '0.4rem',
             }}
           >
-            Direct Jump to Economy ({filteredChips.length} shown)
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}
+            >
+              Direct Jump to Economy ({filteredChips.length} shown)
+            </div>
+            <input
+              type="text"
+              placeholder="🔍 Search economy..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                padding: '0.25rem 0.65rem',
+                fontSize: '0.78rem',
+                minWidth: '160px',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--glass-border-light)',
+                borderRadius: '6px',
+                color: '#fff',
+                outline: 'none',
+              }}
+            />
           </div>
           <div className="country-chips-grid">
             {filteredChips.map((c) => (
@@ -372,6 +569,9 @@ export default function WorldMap() {
                     <span className="badge badge-blue">ISO: {selectedCountry.iso3} / {selectedCountry.iso2}</span>
                     <span className="badge badge-purple">Region: {selectedCountry.region}</span>
                     <span className="badge badge-gray">{selectedCountry.incomeGroup}</span>
+                    {selectedCountry.tradeBloc && (
+                      <span className="badge badge-yellow">Trade Bloc: {selectedCountry.tradeBloc}</span>
+                    )}
                     {selectedCountry.dbId ? (
                       <span className="badge badge-green">✓ Relational Database Entity (ID: {selectedCountry.dbId})</span>
                     ) : (
@@ -412,12 +612,12 @@ export default function WorldMap() {
                       <div className="stat-card">
                         <div className="stat-label">Total Exports (USD)</div>
                         <div className="stat-value text-green">${fmt(Number(latestTrade.exports_usd))}</div>
-                        <div className="stat-sub">Reporting Year: {latestTrade.period_year}</div>
+                        <div className="stat-sub">Reporting Year: {selectedYear}</div>
                       </div>
                       <div className="stat-card">
                         <div className="stat-label">Total Imports (USD)</div>
                         <div className="stat-value text-amber">${fmt(Number(latestTrade.imports_usd))}</div>
-                        <div className="stat-sub">Reporting Year: {latestTrade.period_year}</div>
+                        <div className="stat-sub">Reporting Year: {selectedYear}</div>
                       </div>
                       <div className="stat-card">
                         <div className="stat-label">Net Trade Balance</div>
@@ -442,7 +642,7 @@ export default function WorldMap() {
                   {balanceData && balanceData.length > 0 && (
                     <div className="card" style={{ background: 'var(--bg-surface)' }}>
                       <div className="card-title">
-                        <span>📈 Multi-Year Trade Trajectory: {selectedCountry.name} (2020–2023)</span>
+                        <span>📈 Multi-Year Trade Trajectory: {selectedCountry.name} (2020–{selectedYear})</span>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Source: UN Comtrade / WITS</span>
                       </div>
                       <ResponsiveContainer width="100%" height={260}>
@@ -493,7 +693,7 @@ export default function WorldMap() {
                   >
                     {/* Top Export Destinations */}
                     <div className="card" style={{ background: 'var(--bg-surface)', marginBottom: 0 }}>
-                      <div className="card-title">🔼 Top 5 Export Destination Partners</div>
+                      <div className="card-title">🔼 Top 5 Export Destination Partners (Year {selectedYear})</div>
                       {topExports && topExports.length > 0 ? (
                         <ResponsiveContainer width="100%" height={200}>
                           <BarChart data={topExports} layout="vertical">
@@ -511,14 +711,14 @@ export default function WorldMap() {
                         </ResponsiveContainer>
                       ) : (
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          No bilateral export observations recorded.
+                          No bilateral export observations recorded for {selectedYear}.
                         </p>
                       )}
                     </div>
 
                     {/* Top Import Sources */}
                     <div className="card" style={{ background: 'var(--bg-surface)', marginBottom: 0 }}>
-                      <div className="card-title">🔽 Top 5 Import Source Partners</div>
+                      <div className="card-title">🔽 Top 5 Import Source Partners (Year {selectedYear})</div>
                       {topImports && topImports.length > 0 ? (
                         <ResponsiveContainer width="100%" height={200}>
                           <BarChart data={topImports} layout="vertical">
@@ -536,7 +736,7 @@ export default function WorldMap() {
                         </ResponsiveContainer>
                       ) : (
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          No bilateral import observations recorded.
+                          No bilateral import observations recorded for {selectedYear}.
                         </p>
                       )}
                     </div>

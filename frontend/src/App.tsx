@@ -6,16 +6,20 @@ import TariffHistory from './pages/TariffHistory';
 import Simulator from './pages/Simulator';
 import ScenarioComparison from './pages/ScenarioComparison';
 import AdminPage from './pages/AdminPage';
+import InteractiveBackground from './components/InteractiveBackground';
 
 export default function App() {
   return (
     <div className="app">
+      {/* Interactive mouse-reactive background with subtle animated ambient mesh */}
+      <InteractiveBackground />
+
       <nav className="sidebar">
         <div className="sidebar-brand">
-          <span>🌐</span>
+          <span style={{ fontSize: '1.4rem' }}>🌐</span>
           <div>
             Global Trade
-            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Tariff Simulator
             </div>
           </div>
@@ -45,7 +49,7 @@ export default function App() {
 
         <div className="sidebar-title" style={{ marginTop: '0.75rem' }}>System & Governance</div>
         <NavLink to="/admin" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
-          🛠 Admin / ETL
+          🛠 Admin / DBMS / DuckDB
         </NavLink>
       </nav>
 

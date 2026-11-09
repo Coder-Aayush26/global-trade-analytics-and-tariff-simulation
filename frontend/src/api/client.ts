@@ -51,8 +51,18 @@ export const fetchResults = (runId: number) =>
 export const compareScenarios = (runIds: number[]) =>
   api.get('/scenarios/compare', { params: { run_ids: runIds.join(',') } }).then(r => r.data);
 
-// Admin
+// Admin / ETL
 export const fetchBatches = () =>
   api.get('/admin/ingestion-batches').then(r => r.data);
+
+// DuckDB Columnar OLAP Engine
+export const fetchDuckDBStatus = () =>
+  api.get('/olap/status').then(r => r.data);
+
+export const syncDuckDB = () =>
+  api.post('/olap/sync').then(r => r.data);
+
+export const fetchMarketConcentration = (countryId: number, flow: string = 'IMPORT') =>
+  api.get('/olap/concentration', { params: { country_id: countryId, flow } }).then(r => r.data);
 
 export default api;
