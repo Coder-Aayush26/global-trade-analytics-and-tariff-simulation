@@ -1,16 +1,28 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchCountries, fetchProducts, fetchTariffs } from '../api/client';
 
 export default function TariffHistory() {
-  const [importerId, setImporterId] = useState('');
+  const [importerId, setImporterId] = useState('1'); // Default USA
   const [exporterId, setExporterId] = useState('');
-  const [productId,  setProductId]  = useState('');
+  const [productId,  setProductId]  = useState('1'); // Default HS 8517
   const [asOf,       setAsOf]       = useState('');
-  const [triggered,  setTriggered]  = useState(false);
+  const [triggered,  setTriggered]  = useState(true);
 
   const { data: countries } = useQuery({ queryKey: ['countries'], queryFn: () => fetchCountries() });
   const { data: products }  = useQuery({ queryKey: ['products'],  queryFn: () => fetchProducts() });
+
+  const countryMap = useMemo(() => {
+    const map = new Map<number, string>();
+    countries?.forEach((c: any) => map.set(c.country_id, c.country_name));
+    return map;
+  }, [countries]);
+
+  const productMap = useMemo(() => {
+    const map = new Map<number, string>();
+    products?.forEach((p: any) => map.set(p.product_id, `HS ${p.hs_code} – ${p.product_description}`));
+    return map;
+  }, [products]);
 
   const { data: tariffs, isLoading } = useQuery({
     queryKey: ['tariffs', importerId, exporterId, productId, asOf],
@@ -26,41 +38,51 @@ export default function TariffHistory() {
   return (
     <div>
       <div className="page-header">
-        <h1>Tariff History</h1>
-        <p>Browse effective-dated tariff records. Historical rates are preserved — not overwritten.</p>
+        <h1>📋 Tariff Policy Schedule & History</h1>
+        <p>
+          Effective-dated tariff schedules, MFN vs Preferential bilateral rates, and temporal audit tracking.
+          Historical policy states are immutably preserved using date ranges.
+        </p>
       </div>
 
       <div className="alert alert-info">
-        ℹ️ <b>Scope note:</b> MVP covers ad valorem (percentage) tariffs only. 
-        Preferential rates take precedence over general/MFN rates when an exporter is specified.
-        NULL exporter = general/MFN rate.
+        ℹ️ <b>Stored Function Hierarchy:</b> When evaluating tariffs via <code>get_effective_tariff_rate()</code>, 
+        bilateral Preferential rates supersede General/MFN rates. Rates are bounded between 0% and 100% via database check constraints.
       </div>
 
       <div className="card">
         <div className="filter-row">
           <div className="form-group">
-            <label>Importer *</label>
+            <label>Importer Economy *</label>
             <select value={importerId} onChange={e => setImporterId(e.target.value)}>
-              <option value="">— Select —</option>
-              {countries?.map((c: any) => <option key={c.country_id} value={c.country_id}>{c.country_name}</option>)}
+              <option value="">— Select Importer —</option>
+              {countries?.map((c: any) => (
+                <option key={c.country_id} value={c.country_id}>{c.country_name} ({c.iso3})</option>
+              ))}
             </select>
           </div>
           <div className="form-group">
-            <label>Exporter (blank = show all)</label>
+            <label>Partner / Exporter (Optional)</label>
             <select value={exporterId} onChange={e => setExporterId(e.target.value)}>
-              <option value="">Any / MFN</option>
-              {countries?.map((c: any) => <option key={c.country_id} value={c.country_id}>{c.country_name}</option>)}
+              <option value="">Any / MFN Standard</option>
+              {countries?.map((c: any) => (
+                <option key={c.country_id} value={c.country_id}>{c.country_name} ({c.iso3})</option>
+              ))}
             </select>
           </div>
           <div className="form-group">
-            <label>Product *</label>
+            <label>Harmonized Tariff Item *</label>
             <select value={productId} onChange={e => setProductId(e.target.value)}>
-              <option value="">— Select —</option>
-              {products?.map((p: any) => <option key={p.product_id} value={p.product_id}>{p.hs_code} – {p.product_description.slice(0,40)}</option>)}
+              <option value="">— Select Product —</option>
+              {products?.map((p: any) => (
+                <option key={p.product_id} value={p.product_id}>
+                  HS {p.hs_code} – {p.product_description.slice(0, 35)}...
+                </option>
+              ))}
             </select>
           </div>
           <div className="form-group">
-            <label>As of Date (optional)</label>
+            <label>Effective Date Filter (Optional)</label>
             <input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} />
           </div>
           <button
@@ -68,47 +90,69 @@ export default function TariffHistory() {
             onClick={() => setTriggered(true)}
             disabled={!importerId || !productId}
           >
-            Look Up
+            🔍 Look Up Tariff
           </button>
         </div>
       </div>
 
-      {triggered && isLoading && <div className="loading">Loading…</div>}
+      {isLoading && (
+        <div className="loading">
+          <div className="loading-spinner" />
+          <p>Querying temporal tariff policies...</p>
+        </div>
+      )}
 
-      {tariffs?.length === 0 && triggered && !isLoading && (
-        <div className="alert alert-warn">No tariff records found for these filters.</div>
+      {tariffs?.length === 0 && !isLoading && (
+        <div className="alert alert-warn">
+          ⚠️ No tariff records found matching these criteria in the policy catalog.
+        </div>
       )}
 
       {tariffs?.length > 0 && (
         <div className="card">
-          <div className="card-title">Tariff Records ({tariffs.length})</div>
+          <div className="card-title">
+            <span>
+              Policy Lines: {countryMap.get(Number(importerId))} · {productMap.get(Number(productId))?.slice(0, 40)}
+            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Records Found: {tariffs.length}</span>
+          </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Scope</th>
-                  <th>Type</th>
-                  <th className="text-right">Rate %</th>
+                  <th>Policy ID</th>
+                  <th>Scope & Preference</th>
+                  <th>Tariff Type</th>
+                  <th className="text-right">Ad Valorem Rate</th>
                   <th>Effective From</th>
                   <th>Effective To</th>
-                  <th>Note</th>
+                  <th>Policy Authority / Note</th>
                 </tr>
               </thead>
               <tbody>
                 {tariffs.map((t: any) => (
                   <tr key={t.tariff_policy_id}>
-                    <td>{t.tariff_policy_id}</td>
+                    <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>#{t.tariff_policy_id}</td>
                     <td>
-                      {t.exporter_country_id
-                        ? <span className="badge badge-green">Preferential</span>
-                        : <span className="badge badge-gray">MFN / General</span>}
+                      {t.exporter_country_id ? (
+                        <span className="badge badge-green">
+                          Preferential ({countryMap.get(t.exporter_country_id) || `ID #${t.exporter_country_id}`})
+                        </span>
+                      ) : (
+                        <span className="badge badge-gray">MFN / General (All Exporters)</span>
+                      )}
                     </td>
-                    <td>{t.tariff_type}</td>
-                    <td className="text-right"><b>{Number(t.tariff_rate_pct).toFixed(2)}%</b></td>
+                    <td>
+                      <span className="badge badge-blue">{t.tariff_type}</span>
+                    </td>
+                    <td className="text-right" style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: '1rem', color: '#38bdf8' }}>
+                      {Number(t.tariff_rate_pct).toFixed(2)}%
+                    </td>
                     <td>{t.effective_from}</td>
-                    <td>{t.effective_to ?? <i style={{color:'#64748b'}}>current</i>}</td>
-                    <td style={{ fontSize: '0.8rem', color: '#64748b' }}>{t.policy_note ?? '–'}</td>
+                    <td>{t.effective_to ?? <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>Current (Active)</span>}</td>
+                    <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                      {t.policy_note ?? 'Standard statutory schedule'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
