@@ -11,6 +11,7 @@ import {
   Line,
   Marker,
 } from 'react-simple-maps';
+import { geoInterpolate } from 'd3-geo';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar,
@@ -27,7 +28,37 @@ const fmt = (n: number) => {
 };
 
 type MapLayer = 'scope' | 'balance' | 'volume' | 'bloc';
-type ProjectionType = 'geoEqualEarth' | 'geoMercator';
+type ProjectionType = 'geoEqualEarth' | 'geoMercator' | 'geoOrthographic';
+type ArcFilter = 'all' | 'export' | 'import';
+type ArcSpeed = 'normal' | 'fast' | 'static';
+
+export interface TradeArc {
+  id: string;
+  partnerName: string;
+  partnerIso3: string;
+  partnerEmoji: string;
+  from: [number, number];
+  to: [number, number];
+  flow: 'export' | 'import';
+  value: number;
+  rank: number;
+  points: Array<[number, number]>;
+  strokeWidth: number;
+}
+
+// Compute great-circle geodesic curve coordinates
+function getGeodesicPoints(from: [number, number], to: [number, number], steps: number = 28): Array<[number, number]> {
+  try {
+    const interpolator = geoInterpolate(from, to);
+    const pts: Array<[number, number]> = [];
+    for (let i = 0; i <= steps; i++) {
+      pts.push(interpolator(i / steps));
+    }
+    return pts;
+  } catch {
+    return [from, to];
+  }
+}
 
 export default function WorldMap() {
   const navigate = useNavigate();
@@ -45,6 +76,11 @@ export default function WorldMap() {
   const [mapLayer, setMapLayer] = useState<MapLayer>('scope');
   const [projection, setProjection] = useState<ProjectionType>('geoEqualEarth');
   const [showArcs, setShowArcs] = useState<boolean>(true);
+  const [arcFilter, setArcFilter] = useState<ArcFilter>('all');
+  const [arcSpeed, setArcSpeed] = useState<ArcSpeed>('normal');
+  const [showHubLabels, setShowHubLabels] = useState<boolean>(true);
+  const [hoveredArc, setHoveredArc] = useState<TradeArc | null>(null);
+  const [arcTooltipPos, setArcTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
   // List of seeded database countries
   const seededCountries = useMemo(() => {
@@ -68,7 +104,7 @@ export default function WorldMap() {
     queryFn: () =>
       fetchTradeBalance({
         country_id: selectedCountry!.dbId,
-        year_from: 2020,
+        year_from: 2018,
         year_to: selectedYear,
       }),
     enabled: isDbCountry,
@@ -111,45 +147,57 @@ export default function WorldMap() {
 
   const latestTrade = balanceData && balanceData.length > 0 ? balanceData[balanceData.length - 1] : null;
 
-  // Compute trade flow vectors for network arcs
+  // Compute realistic Great-Circle geodesic trade network arcs
   const tradeArcs = useMemo(() => {
     if (!showArcs || !isDbCountry || !selectedCountry.coordinates) return [];
-    const arcs: Array<{
-      partnerName: string;
-      from: [number, number];
-      to: [number, number];
-      flow: 'export' | 'import';
-      value: number;
-    }> = [];
+    const arcs: TradeArc[] = [];
 
-    topExports?.forEach((p: any) => {
-      const partnerMeta = getCountryMetadata(p.partner_country);
-      if (partnerMeta.coordinates) {
-        arcs.push({
-          partnerName: p.partner_country,
-          from: selectedCountry.coordinates,
-          to: partnerMeta.coordinates,
-          flow: 'export',
-          value: Number(p.total_value_usd),
-        });
-      }
-    });
+    if (arcFilter === 'all' || arcFilter === 'export') {
+      topExports?.forEach((p: any, idx: number) => {
+        const partnerMeta = getCountryMetadata(p.partner_country);
+        if (partnerMeta.coordinates) {
+          const val = Number(p.total_value_usd);
+          arcs.push({
+            id: `exp-${p.partner_iso3 || idx}`,
+            partnerName: p.partner_country,
+            partnerIso3: partnerMeta.iso3,
+            partnerEmoji: partnerMeta.flagEmoji,
+            from: selectedCountry.coordinates,
+            to: partnerMeta.coordinates,
+            flow: 'export',
+            value: val,
+            rank: p.partner_rank ?? idx + 1,
+            points: getGeodesicPoints(selectedCountry.coordinates, partnerMeta.coordinates, 28),
+            strokeWidth: Math.max(1.8, Math.min(5.2, Math.sqrt(val / 1e9) * 0.44)),
+          });
+        }
+      });
+    }
 
-    topImports?.forEach((p: any) => {
-      const partnerMeta = getCountryMetadata(p.partner_country);
-      if (partnerMeta.coordinates) {
-        arcs.push({
-          partnerName: p.partner_country,
-          from: partnerMeta.coordinates,
-          to: selectedCountry.coordinates,
-          flow: 'import',
-          value: Number(p.total_value_usd),
-        });
-      }
-    });
+    if (arcFilter === 'all' || arcFilter === 'import') {
+      topImports?.forEach((p: any, idx: number) => {
+        const partnerMeta = getCountryMetadata(p.partner_country);
+        if (partnerMeta.coordinates) {
+          const val = Number(p.total_value_usd);
+          arcs.push({
+            id: `imp-${p.partner_iso3 || idx}`,
+            partnerName: p.partner_country,
+            partnerIso3: partnerMeta.iso3,
+            partnerEmoji: partnerMeta.flagEmoji,
+            from: partnerMeta.coordinates,
+            to: selectedCountry.coordinates,
+            flow: 'import',
+            value: val,
+            rank: p.partner_rank ?? idx + 1,
+            points: getGeodesicPoints(partnerMeta.coordinates, selectedCountry.coordinates, 28),
+            strokeWidth: Math.max(1.8, Math.min(5.2, Math.sqrt(val / 1e9) * 0.44)),
+          });
+        }
+      });
+    }
 
     return arcs;
-  }, [showArcs, isDbCountry, selectedCountry, topExports, topImports]);
+  }, [showArcs, isDbCountry, selectedCountry, topExports, topImports, arcFilter]);
 
   // Color resolver according to active choropleth layer (Light Theme Palette)
   const getCountryFill = (meta: CountryMeta, isSelected: boolean) => {
@@ -266,6 +314,62 @@ export default function WorldMap() {
               {showArcs ? '🌐 Trade Arcs: ON' : '🌐 Trade Arcs: OFF'}
             </button>
 
+            {/* Arc Filter Mode */}
+            {showArcs && (
+              <select
+                value={arcFilter}
+                onChange={(e) => setArcFilter(e.target.value as ArcFilter)}
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.8rem',
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--glass-border-light)',
+                  borderRadius: '6px',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                }}
+                title="Filter Arc Flow Direction"
+              >
+                <option value="all">Arcs: All (Exp & Imp)</option>
+                <option value="export">Arcs: Exports Only (🟢)</option>
+                <option value="import">Arcs: Imports Only (🟡)</option>
+              </select>
+            )}
+
+            {/* Arc Flow Velocity */}
+            {showArcs && (
+              <select
+                value={arcSpeed}
+                onChange={(e) => setArcSpeed(e.target.value as ArcSpeed)}
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.8rem',
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--glass-border-light)',
+                  borderRadius: '6px',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                }}
+                title="Flow Velocity"
+              >
+                <option value="normal">Laser Speed: Normal</option>
+                <option value="fast">Laser Speed: High</option>
+                <option value="static">Laser Speed: Static</option>
+              </select>
+            )}
+
+            {/* Hub Labels Toggle */}
+            {showArcs && (
+              <button
+                className={`btn btn-sm ${showHubLabels ? 'btn-secondary' : 'btn-outline'}`}
+                onClick={() => setShowHubLabels(!showHubLabels)}
+                title="Toggle Partner Badges on Map"
+                style={{ fontSize: '0.78rem' }}
+              >
+                🏷️ {showHubLabels ? 'Labels: ON' : 'Labels: OFF'}
+              </button>
+            )}
+
             {/* Projection Toggle */}
             <select
               value={projection}
@@ -276,12 +380,15 @@ export default function WorldMap() {
                 background: 'var(--bg-input)',
                 border: '1px solid var(--glass-border-light)',
                 borderRadius: '6px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 outline: 'none',
+                fontWeight: 600,
               }}
+              title="Cartographic Projection"
             >
-              <option value="geoEqualEarth">Equal Earth</option>
-              <option value="geoMercator">Mercator</option>
+              <option value="geoOrthographic">🌍 3D Spherical Globe</option>
+              <option value="geoEqualEarth">🗺️ Equal Earth (2D)</option>
+              <option value="geoMercator">🧭 Mercator</option>
             </select>
 
             {/* Observation Year Selector */}
@@ -294,7 +401,7 @@ export default function WorldMap() {
                 background: 'var(--bg-input)',
                 border: '1px solid var(--glass-border-light)',
                 borderRadius: '6px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 outline: 'none',
               }}
             >
@@ -302,6 +409,8 @@ export default function WorldMap() {
               <option value={2022}>Year 2022</option>
               <option value={2021}>Year 2021</option>
               <option value={2020}>Year 2020</option>
+              <option value={2019}>Year 2019</option>
+              <option value={2018}>Year 2018</option>
             </select>
 
             {/* Zoom Controls */}
@@ -382,26 +491,109 @@ export default function WorldMap() {
         )}
 
         {/* Real Accurate Cartographic SVG Map Canvas with Network Arcs */}
-        <div className="map-svg-container">
+        <div className="map-svg-container world-map-viewport">
+          {/* Arc Hover Telemetry Card */}
+          {hoveredArc && arcTooltipPos && (
+            <div
+              className="arc-telemetry-badge"
+              style={{ left: `${arcTooltipPos.x}px`, top: `${arcTooltipPos.y}px` }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                <span>{hoveredArc.flow === 'export' ? '🚢 Outbound Export Corridor' : '📦 Inbound Import Supply Corridor'}</span>
+                <span
+                  style={{
+                    padding: '0.15rem 0.4rem',
+                    borderRadius: '4px',
+                    fontSize: '0.72rem',
+                    background: hoveredArc.flow === 'export' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+                    color: hoveredArc.flow === 'export' ? '#34d399' : '#fbbf24',
+                    border: `1px solid ${hoveredArc.flow === 'export' ? '#10b981' : '#f59e0b'}`,
+                  }}
+                >
+                  Partner Rank #{hoveredArc.rank}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#fff' }}>
+                {hoveredArc.flow === 'export'
+                  ? `${selectedCountry.flagEmoji} ${selectedCountry.name} ➔ ${hoveredArc.partnerEmoji} ${hoveredArc.partnerName}`
+                  : `${hoveredArc.partnerEmoji} ${hoveredArc.partnerName} ➔ ${selectedCountry.flagEmoji} ${selectedCountry.name}`}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                Bilateral Trade Value: <b style={{ color: '#f8fafc' }}>${fmt(hoveredArc.value)} USD</b>
+              </div>
+            </div>
+          )}
+
           <ComposableMap
             projection={projection}
             projectionConfig={{
-              scale: projection === 'geoEqualEarth' ? 165 : 120,
+              scale: projection === 'geoOrthographic' ? 240 : projection === 'geoEqualEarth' ? 165 : 115,
+              rotate:
+                projection === 'geoOrthographic' && selectedCountry?.coordinates
+                  ? [-selectedCountry.coordinates[0], -selectedCountry.coordinates[1] * 0.65, 0]
+                  : [0, 0, 0],
               center: [0, 0],
             }}
             style={{ width: '100%', height: '100%', outline: 'none' }}
           >
+            <defs>
+              {/* Photorealistic Ocean Depth Gradients */}
+              <radialGradient id="ocean-depth" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#f8fafc" />
+                <stop offset="65%" stopColor="#e2e8f0" />
+                <stop offset="100%" stopColor="#cbd5e1" />
+              </radialGradient>
+              {/* Photon Bloom Glow for Laser Arcs */}
+              <filter id="arc-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="2.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              {/* 3D Celestial Atmosphere Halo Filter */}
+              <filter id="halo-glow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="6" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            {/* 3D Globe Atmosphere Rim (rendered only in Orthographic Mode) */}
+            {projection === 'geoOrthographic' && (
+              <circle
+                cx={400}
+                cy={225}
+                r={242}
+                fill="none"
+                stroke="#38bdf8"
+                strokeWidth={3}
+                opacity={0.35}
+                filter="url(#halo-glow)"
+                pointerEvents="none"
+              />
+            )}
+
             <ZoomableGroup
               zoom={position.zoom}
-              center={position.coordinates}
+              center={projection === 'geoOrthographic' ? [0, 0] : position.coordinates}
               onMoveEnd={(pos) => {
-                if (pos.coordinates) {
+                if (pos.coordinates && projection !== 'geoOrthographic') {
                   setPosition({ coordinates: pos.coordinates, zoom: pos.zoom });
+                } else if (pos.zoom) {
+                  setPosition((prev) => ({ ...prev, zoom: pos.zoom }));
                 }
               }}
             >
-              <Sphere stroke="#cbd5e1" strokeWidth={0.5} id="sphere" fill="transparent" />
-              <Graticule stroke="#e2e8f0" strokeWidth={0.5} />
+              <Sphere
+                stroke="#94a3b8"
+                strokeWidth={projection === 'geoOrthographic' ? 0.9 : 0.5}
+                id="sphere"
+                fill={projection === 'geoOrthographic' ? 'url(#ocean-depth)' : 'rgba(240, 249, 255, 0.4)'}
+              />
+              <Graticule stroke="#cbd5e1" strokeWidth={0.5} step={[30, 30]} opacity={0.7} />
               <Geographies geography={TOPO_JSON_URL}>
                 {({ geographies }) =>
                   geographies.map((geo) => {
@@ -448,36 +640,109 @@ export default function WorldMap() {
                 }
               </Geographies>
 
-              {/* Bilateral Trade Network Arcs */}
-              {tradeArcs.map((arc, idx) => (
+              {/* 1. Underlying Soft Glow Geodesic Corridor (Interactive Hover Target) */}
+              {tradeArcs.map((arc) => (
                 <Line
-                  key={`arc-${idx}`}
-                  from={arc.from}
-                  to={arc.to}
+                  key={`arc-glow-${arc.id}`}
+                  coordinates={arc.points}
                   stroke={arc.flow === 'export' ? '#10b981' : '#f59e0b'}
-                  strokeWidth={2.2}
-                  strokeDasharray="4 2"
-                  style={{ pointerEvents: 'none', opacity: 0.85 }}
+                  strokeWidth={arc.strokeWidth + 3.2}
+                  strokeLinecap="round"
+                  className="trade-arc-glow"
+                  onMouseEnter={(evt) => {
+                    setHoveredArc(arc);
+                    setArcTooltipPos({ x: evt.clientX, y: evt.clientY - 12 });
+                  }}
+                  onMouseMove={(evt) => {
+                    setArcTooltipPos({ x: evt.clientX, y: evt.clientY - 12 });
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredArc(null);
+                    setArcTooltipPos(null);
+                  }}
                 />
               ))}
 
-              {/* Markers for Connected Trade Hubs */}
-              {tradeArcs.map((arc, idx) => (
-                <Marker key={`marker-${idx}`} coordinates={arc.flow === 'export' ? arc.to : arc.from}>
-                  <circle
-                    r={3.5}
-                    fill={arc.flow === 'export' ? '#10b981' : '#f59e0b'}
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                  />
-                </Marker>
-              ))}
+              {/* 2. Crisp Pulsing Laser Stream with Directional Motion */}
+              {tradeArcs.map((arc) => {
+                const isSelectedArc = hoveredArc?.id === arc.id;
+                const animClass =
+                  arcSpeed === 'fast'
+                    ? arc.flow === 'export'
+                      ? 'trade-arc-stream trade-arc-stream-fast-export'
+                      : 'trade-arc-stream trade-arc-stream-fast-import'
+                    : arcSpeed === 'normal'
+                    ? arc.flow === 'export'
+                      ? 'trade-arc-stream trade-arc-stream-export'
+                      : 'trade-arc-stream trade-arc-stream-import'
+                    : 'trade-arc-stream';
 
-              {/* Selected Country Center Marker */}
+                return (
+                  <Line
+                    key={`arc-stream-${arc.id}`}
+                    coordinates={arc.points}
+                    stroke={
+                      isSelectedArc
+                        ? '#0284c7'
+                        : arc.flow === 'export'
+                        ? '#059669'
+                        : '#d97706'
+                    }
+                    strokeWidth={isSelectedArc ? arc.strokeWidth + 1.4 : arc.strokeWidth}
+                    className={animClass}
+                    filter="url(#arc-glow)"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                );
+              })}
+
+              {/* 3. Connected Trade Hubs with Animated Radar Pulse Beacons */}
+              {tradeArcs.map((arc) => {
+                const hubCoords = arc.flow === 'export' ? arc.to : arc.from;
+                const isExp = arc.flow === 'export';
+                return (
+                  <Marker key={`hub-${arc.id}`} coordinates={hubCoords}>
+                    <circle
+                      r={4}
+                      fill="none"
+                      stroke={isExp ? '#10b981' : '#f59e0b'}
+                      className="radar-hub-ring"
+                    />
+                    <circle
+                      r={3.8}
+                      fill={isExp ? '#10b981' : '#f59e0b'}
+                      stroke="#ffffff"
+                      strokeWidth={1.2}
+                    />
+                    {showHubLabels && (
+                      <text
+                        y={-10}
+                        textAnchor="middle"
+                        className="hub-label-text"
+                      >
+                        {arc.partnerEmoji} {arc.partnerIso3} (${fmt(arc.value)})
+                      </text>
+                    )}
+                  </Marker>
+                );
+              })}
+
+              {/* 4. Origin Selected Country Hub with Multi-Tier Sonar Rings */}
               {selectedCountry.coordinates && (
                 <Marker coordinates={selectedCountry.coordinates}>
-                  <circle r={5} fill="#0284c7" stroke="#ffffff" strokeWidth={1.5} />
-                  <circle r={9} fill="none" stroke="#0284c7" strokeWidth={1} opacity={0.6} />
+                  <circle r={6} fill="none" stroke="#0284c7" className="selected-hub-ring" />
+                  <circle r={6.5} fill="#0284c7" stroke="#ffffff" strokeWidth={2} />
+                  <circle r={2.5} fill="#ffffff" />
+                  {showHubLabels && (
+                    <text
+                      y={-14}
+                      textAnchor="middle"
+                      className="hub-label-text"
+                      style={{ fontSize: '11px', fill: '#0369a1' }}
+                    >
+                      📍 {selectedCountry.flagEmoji} {selectedCountry.iso3} (Origin)
+                    </text>
+                  )}
                 </Marker>
               )}
             </ZoomableGroup>
