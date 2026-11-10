@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api import reference, trade, tariffs, scenarios, admin
+from app.api import reference, trade, tariffs, scenarios, admin, olap
 
 app = FastAPI(
     title=settings.APP_TITLE,
@@ -34,6 +34,7 @@ app.include_router(trade.router,      prefix="/api")
 app.include_router(tariffs.router,    prefix="/api")
 app.include_router(scenarios.router,  prefix="/api")
 app.include_router(admin.router,      prefix="/api")
+app.include_router(olap.router,       prefix="/api")
 
 
 @app.get("/", tags=["Health"])

@@ -1,0 +1,31 @@
+country_id,iso3,iso2,country_name,region,income_group
+1,USA,US,United States of America,North America,High income
+2,CHN,CN,China,East Asia,Upper middle income
+3,DEU,DE,Germany,Europe,High income
+4,JPN,JP,Japan,East Asia,High income
+5,GBR,GB,United Kingdom,Europe,High income
+6,FRA,FR,France,Europe,High income
+7,IND,IN,India,South Asia,Lower middle income
+8,BRA,BR,Brazil,South America,Upper middle income
+9,CAN,CA,Canada,North America,High income
+10,KOR,KR,South Korea,East Asia,High income
+11,AUS,AU,Australia,Oceania,High income
+12,MEX,MX,Mexico,North America,Upper middle income
+13,ITA,IT,Italy,Europe,High income
+14,ESP,ES,Spain,Europe,High income
+15,NLD,NL,Netherlands,Europe,High income
+16,SAU,SA,Saudi Arabia,Middle East,High income
+17,SGP,SG,Singapore,East Asia & Pacific,High income
+18,VNM,VN,Vietnam,East Asia & Pacific,Lower middle income
+19,IDN,ID,Indonesia,East Asia & Pacific,Upper middle income
+20,CHE,CH,Switzerland,Europe,High income
+21,TUR,TR,Turkey,Europe / Middle East,Upper middle income
+22,ZAF,ZA,South Africa,Sub-Saharan Africa,Upper middle income
+23,ARG,AR,Argentina,South America,Upper middle income
+24,EGY,EG,Egypt,Middle East & North Africa,Lower middle income
+25,RUS,RU,Russia,Europe / Eurasia,Upper middle income
+26,ARE,AE,United Arab Emirates,Middle East,High income
+27,MYS,MY,Malaysia,East Asia & Pacific,Upper middle income
+28,THA,TH,Thailand,East Asia & Pacific,Upper middle income
+29,POL,PL,Poland,Europe,High income
+30,SWE,SE,Sweden,Europe,High income

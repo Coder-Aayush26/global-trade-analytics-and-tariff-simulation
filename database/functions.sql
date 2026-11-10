@@ -66,7 +66,7 @@ AS $$
         ORDER BY tp.effective_from DESC
         LIMIT 1
     )
-    ORDER BY scope   -- PREFERENTIAL sorts before MFN alphabetically
+    ORDER BY scope DESC   -- PREFERENTIAL (P) sorts before MFN (M) descending
     LIMIT 1;
 $$;
 
